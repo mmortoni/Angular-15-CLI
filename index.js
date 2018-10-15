@@ -20,7 +20,6 @@ initScript();
 //
 //
 
-
 function initScript() {
   genScript()
   if (value === 'new') {
@@ -712,7 +711,6 @@ angular.module('app', [
     componentsArray = [];
     genArr = [];
 
-
     function camelize(str) {
       return str.replace(/(?:^\w|[A-Z]|\b\w)/g, function (letter, index) {
         return index == 0 ? letter.toLowerCase() : letter.toUpperCase();
@@ -720,7 +718,7 @@ angular.module('app', [
     }
 
     value = camelize(`${value}`)
-    argument3 = camelize(`${argument3}`)
+    //14/10/2018 - nargument3 = camelize(`${argument3}`)
     argument4 = camelize(`${argument4}`)
 
     // sync app.component with updates
@@ -766,25 +764,8 @@ angular.module('app', [
         } else {
           listString = listString + `     ${componentsArray[i].capitalizeFirstLetter()}Module` + '.name, \r'
         }
-
       }
-
-
-      fs.writeFile("components.js", `import angular from 'angular';
-${genString}
-
-const ComponentsModule = angular.module('app.components',[
-  ${listString}
-]);
-
-export default ComponentsModule;`, function (err) {
-        if (err) {
-          return console.log(` ❌  failed to update due to error:  ${err}`);
-        }
-        console.log(" 🔰  updated: ".cyan + "components.js".white);
-      });
     }
-
 
     mkdirp(argument3, function (err) {
       console.log("Generating Component...".white)
@@ -792,12 +773,87 @@ export default ComponentsModule;`, function (err) {
       else
         process.chdir(argument3),
 
+          mkdirp(`__snapshots__`, function (err) {
+            if (err) console.error(err)
+            else
+              process.chdir(`./__snapshots__`),
+
+            console.log(" 🎁  created: ".cyan + `${argument3}/__snapshots__`.white);
+
+            //build component.html
+            fs.writeFile(argument3 + ".spec.ts.snap", `// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[Component: ${argument3} should render component 1] = "";              
+              `, function (err) {
+              if (err) {
+                return console.log(` ❌  failed to generate due to error:  ${err}`);
+              }
+              console.log(" 🎁  created: ".cyan + argument3 + ".spec.ts.snap".white);
+            });            
+          });
+
           //build component.html
           fs.writeFile(argument3 + ".component.html", `<h1> ${argument3} works! </h1>`, function (err) {
             if (err) {
               return console.log(` ❌  failed to generate due to error:  ${err}`);
             }
             console.log(" 🎁  created: ".cyan + argument3.white + ".component.html".white);
+          });
+
+          //build index.ts
+          fs.writeFile("index.ts", `import './${argument3}.component';`, function (err) {
+            if (err) {
+              return console.log(` ❌  failed to generate due to error:  ${err}`);
+            }
+            console.log(" 🎁  created: ".cyan + "index.ts".white);
+          });
+
+          const compNameSpace = argument3.split("-").map(s => s).join(' ');
+
+          //build argument3.spec.ts
+          fs.writeFile(argument3 + ".spec.ts", `import 'import * as angular from 'angular';
+import 'angular-mocks';
+
+describe('Component: ${compNameSpace}', () => {
+    let scope: any;
+    let $rootScope: angular.IRootScopeService;
+    let $compile: angular.ICompileService;
+    let $q: angular.IQService;
+
+    beforeEach(angular.mock.module('flyfreely'));
+    beforeEach(angular.mock.module('flyfreely.sharedui'));
+
+    beforeEach(inject((_$rootScope_: angular.IRootScopeService, _$compile_: angular.ICompileService,
+        _$q_: angular.IQService) => {
+
+        $rootScope = _$rootScope_;
+        $compile = _$compile_;
+        $q = _$q_;
+    }));
+
+    function testUsingData() {
+        scope = $rootScope.$new();
+
+        let element = angular.element(
+            \`<${argument3}></${argument3}>\`
+        );
+
+        element = $compile(element)(scope);
+        scope.$digest();
+
+        expect(element).toBeDefined();
+        expect(element.html()).toMatchSnapshot();
+    }
+
+    it('should render component', () => {
+        testUsingData();
+    });
+});
+            `, function (err) {
+            if (err) {
+              return console.log(` ❌  failed to generate due to error:  ${err}`);
+            }
+            console.log(" 🎁  created: ".cyan + argument3 + ".spec.ts".white);
           });
 
       //build scss || css styling scripts
@@ -819,20 +875,31 @@ export default ComponentsModule;`, function (err) {
         });
       }
 
+  const compNameCamelCase1 = argument3.split("-").map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
+  const compNameCamelCase2 = argument3.replace(/(\-\w)/g, function(m){return m[1].toUpperCase();});
+
 if (argument3 === "--style:css" || argument4 === "--style:css") {
   // include component.css
-  fs.writeFile(argument3 + ".component.js", `import template from './${argument3}.component.html';
-import controller from './${argument3}.controller.js';
-import './${argument3}.component.css';
+  fs.writeFile(argument3 + ".component.ts", `import * as angular from 'angular';
+import BaseUi from '../base-ui';
 
-let ${argument3}Component = {
-  restrict: 'E',
-  bindings: {},
-  template,
-  controller,
-  controllerAs: '${argument3}Controller'
-};
-export default ${argument3}Component;`, function (err) {
+require('./${argument3}.component.css');
+
+class ${compNameCamelCase1}Controller extends BaseUi {
+
+    constructor($q: angular.IQService, promiseTracker: angular.promisetracker.PromiseTracker) {
+        super($q, promiseTracker);
+    }
+}
+
+angular.module('flyfreely.sharedui')
+    .component('${compNameCamelCase2}', {
+        template: require('./${argument3}.component.html'),
+        bindings: {
+        },
+        controller: ${compNameCamelCase1}Controller
+    });
+`, function (err) {
     if (err) {
       return console.log(` ❌  failed to generate due to error:  ${err}`);
     }
@@ -840,55 +907,34 @@ export default ${argument3}Component;`, function (err) {
   });
 } else {
   // include component.scss
-  fs.writeFile(argument3 + ".component.js", `import template from './${argument3}.component.html';
-import controller from './${argument3}.controller.js';
-import './${argument3}.component.scss';
+  fs.writeFile(argument3 + ".component.ts", `import * as angular from 'angular';
+import BaseUi from '../base-ui';
 
-let ${argument3}Component = {
-  restrict: 'E',
-  bindings: {},
-  template,
-  controller,
-  controllerAs: '${argument3}Controller'
-};
-export default ${argument3}Component;`, function (err) {
+require('./${argument3}.component.scss');
+
+class ${compNameCamelCase1}Controller extends BaseUi {
+
+    constructor($q: angular.IQService, promiseTracker: angular.promisetracker.PromiseTracker) {
+        super($q, promiseTracker);
+    }
+
+}
+
+angular.module('flyfreely.sharedui')
+    .component('${compNameCamelCase2}', {
+        template: require('./${argument3}.component.html'),
+        bindings: {
+        },
+        controller: ${compNameCamelCase1}Controller
+    });
+`, function (err) {
     if (err) {
       return console.log(` ❌  failed to generate due to error:  ${err}`);
     }
-    console.log(" 🎁  created: ".cyan + argument3.white + ".component.js".white);
+    console.log(" 🎁  created: ".cyan + argument3.white + ".component.ts".white);
   });
 }
-
-
-
-      //build module.js
-      fs.writeFile(argument3 + ".module.js", `import angular from 'angular';
-import ${argument3}Component from './${argument3}.component';
-
-const ${argument3}Module = angular.module('${argument3}', [])
-  .component('${argument3}', ${argument3}Component);
-export default ${argument3}Module;`, function (err) {
-        if (err) {
-          return console.log(` ❌  failed to generate due to error:  ${err}`);
-        }
-        console.log(" 🎁  created: ".cyan + argument3.white + ".module.js".white);
-      });
-
-      //build controller.js
-      fs.writeFile(argument3 + ".controller.js", `class ${argument3}Controller {
-    constructor() {
-      this.name = '${argument3}';
-    }
-  }
-
-  export default ${argument3}Controller;`, function (err) {
-        if (err) {
-          return console.log(` ❌  failed to generate due to error:  ${err}`);
-        }
-        console.log(" 🎁  created: ".cyan + argument3.white + ".controller.js".white);
-      });
     });
-
 
   } else if (value === 'help' || value === '-help' || value === '--help' || value === '-h') {
     // provide user with help
